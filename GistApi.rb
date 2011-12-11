@@ -24,6 +24,10 @@ class GistApi
     @data['user']['login']
   end
 
+  def get_description
+    @data['description']
+  end
+
   def hasfork?
     @data['forks'].empty? ? false : true
   end
@@ -35,7 +39,6 @@ class GistApi
   def file_number
     @data['files'].size
   end
-
 end
 
 g = GistApi.new "76c973976cde5301bcdb"
