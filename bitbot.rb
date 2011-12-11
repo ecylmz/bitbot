@@ -23,22 +23,26 @@ def get_gist_no(content)
   content[/https:\/\/gist.github.com\/(\w+)/, 1]
 end
 
-def get_lesson_code
-  get_description[/.*\[([^\]]*)/, 1]
+def get_lesson_code(description)
+  description[/.*\[([^\]]*)/, 1].split[1]
+end
+
+def get_student_number(description)
+  description[/.*\[([^\]]*)/, 1].split[0]
 end
 
 def send_email(who, body)
   # bunlar config dosyasından alınmalı
   from = "mail@example.com"
-  to = get_from_email get_content
+  to = "#{get_from_email get_content}"
   p = "password"
   content = <<EOF
-  From: #{from}
-  To: #{to}
-  subject: Gönderdiğiniz Ödev
-  Date: #{Time.now.rfc2822}
+From: #{from}
+To: #{to}
+subject: Gönderdiğiniz Ödev
+Date: #{Time.now.rfc2822}
 
-  #{body}
+#{body}
 EOF
   Net::SMTP.enable_tls(OpenSSL::SSL::VERIFY_NONE)
   Net::SMTP.start('smtp.gmail.com', 587, 'gmail.com', from, p, :login) do |smtp|
@@ -46,22 +50,18 @@ EOF
   end
 end
 
-def gist_clone(path, gist_no)
-  begin
-    FileUtils.mkdir_p(path) unless File.exist? path
-    FileUtils.chdir(path)
-    `git clone git@gist.github.com:#{gist_no}.git `
-  rescue
-    $stderr.puts "klonlama işleminde hata."
-    exit(1)
-  end
+def gist_clone(path, gist_no, gist_name)
+  FileUtils.mkdir_p(path) unless File.exist? path
+  FileUtils.chdir(path)
+  `git clone git@gist.github.com:#{gist_no}.git #{gist_name}`
+  FileUtils.chdir("../..")
 end
 
 def main
-  gist = GistApi.new get_gist_no
+  gist = GistApi.new get_gist_no(get_content)
   who = get_from_email get_content
 
-  if ! File.exist? CONFIG_FILE
+  if !File.exist? CONFIG_FILE
     $stderr.puts "config.yml dosyası yok."
     exit(1)
   end
@@ -71,24 +71,31 @@ def main
   if gist.public?
     send_email(who, "Geçersiz Gist.\nGist'iniz private olmalıdır.")
     exit(1)
+  end
 
   # forku varsa olmaz
-  elsif gist.hasfork?
+  if gist.hasfork?
     send_email(who, "Geçersiz Gist.\nGist'iniz forklara sahip olmamalıdır.")
     exit(1)
+  end
+
+  # ders kodu var mı bakalım
+  lesson = config.transform[get_lesson_code(gist.get_description)]
+  if lesson.nil?
+    send_email(who, "Geçersiz Gist\nGist'in description kısmında [ders_kodu] yok veya hatalı ders kodu.")
+    exit(1)
+  end
 
   # tarihi gecmis mi
-  lesson = config.transform[get_description]
   date_diff = lesson['end_date'] - Date.today
-  elsif dat_diff.zero?
+  if date_diff.zero?
     send_email(who, "Geçersiz Gist.\nÖdev süresi doldu.")
+    exit(1)
+  end
 
   # sorun yok
-  else
-    gist_clone(get_lesson_code+lesson['odev_adi'], get_gist_no)
-    send_email(who, "Gistiniz kaydedildi.")
-  end
+  gist_clone(get_lesson_code(gist.get_description) + "/" + lesson['odev_adi'], get_gist_no(get_content), get_student_number(gist.get_description) + "_" + gist.get_username)
+  send_email(who, "Gistiniz kaydedildi.")
 end
 
-# p get_gist_no get_content
-# p get_from_email get_content
+main

@@ -41,8 +41,9 @@ class GistApi
   end
 end
 
-g = GistApi.new "76c973976cde5301bcdb"
-p g.hasfork?
-p g.file_number
-p g.public?
-p g.get_username
+# g = GistApi.new "3d4c61724d37c19d8d5b"
+# p g.hasfork?
+# p g.file_number
+# p g.public?
+# p g.get_username
+# p g.get_description[/.*\[([^\]]*)/, 1]
