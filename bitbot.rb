@@ -31,9 +31,10 @@ def get_student_number(description)
   description[/.*\[([^\]]*)/, 1].split[0]
 end
 
+# Genel mail gönderimi
 def send_email(who, body)
   # bunlar config dosyasından alınmalı
-  from = "mail@example.com"
+  from = "from@example.com"
   to = "#{get_from_email get_content}"
   p = "password"
   content = <<EOF
@@ -44,6 +45,60 @@ Date: #{Time.now.rfc2822}
 
 #{body}
 EOF
+  Net::SMTP.enable_tls(OpenSSL::SSL::VERIFY_NONE)
+  Net::SMTP.start('smtp.gmail.com', 587, 'gmail.com', from, p, :login) do |smtp|
+    smtp.send_message(content, from, to)
+  end
+end
+
+# hoca mı mail atmış, onun kontrolunde kullanılıyor
+# hoca mail adresini ve mevcut ödev adını dönüyor.
+def which_teacher(config, get_from_email)
+  # TODO break koy
+  config.transform.collect do |k, v|
+    if get_from_email == v['email']
+      result = { :name => get_from_email, :hw => config.transform[k]['odev_adi']}
+      break
+    end
+  end
+  result
+end
+
+# odevleri arşivleyelim
+def create_archive(hw_path)
+  `tar czvf #{hw_path.split("/")[1]}.tar.gz #{hw_path}`
+end
+
+# hocaya eki olan bi mail hazırlayalım.
+def send_email_teacher(teacher, file)
+  filecontent = File.read(file)
+  encodedcontent = [filecontent].pack("m")
+  marker = "AUNIQUEMARKER"
+
+  from = "from@example.com"
+  to = "#{teacher}"
+  p = "password"
+  content = <<EOF
+From: #{from}
+To: #{to}
+subject: Ödev Raporu
+Date: #{Time.now.rfc2822}
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary=#{marker}
+--#{marker}
+
+Content-Type: text/plain
+Content-Transfer-Encoding:8bit
+#{body}
+--#{marker}
+
+Content-Type: multipart/mixed; name=\"#{file}\"
+Content-Transfer-Encoding:base64
+Content-Disposition: attachment; filename="#{file}"
+#{encode_file}
+#--#{marker}--
+EOF
+
   Net::SMTP.enable_tls(OpenSSL::SSL::VERIFY_NONE)
   Net::SMTP.start('smtp.gmail.com', 587, 'gmail.com', from, p, :login) do |smtp|
     smtp.send_message(content, from, to)
@@ -92,6 +147,15 @@ def main
     send_email(who, "Geçersiz Gist.\nÖdev süresi doldu.")
     exit(1)
   end
+
+  # mail atan hoca mı ?
+  info_teacher = which_teacher(config, get_from_email)[:name]
+  if info_teacher[:name]
+    create_archive(get_lesson_code + "/" + info_teacher[:hw])
+    send_email_teacher(info_teacher[:name], info_teacher[:hw]+".tar.gz")
+    exit(0)
+  end
+
 
   # sorun yok
   gist_clone(get_lesson_code(gist.get_description) + "/" + lesson['odev_adi'], get_gist_no(get_content), get_student_number(gist.get_description) + "_" + gist.get_username)
