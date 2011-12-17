@@ -20,24 +20,18 @@ server = IMAP {
 mailboxes, folders = server:list_all()
 
 for i,m in pairs (mailboxes) do
-    --messages = server[m]:is_unseen() -- + server[m]:is_new ()
     filter = server[m]:is_unseen() *
-                server[m]:contain_body("https:gist.github.com")
-    --subjects = server[m]:fetch_fields({ 'subject' }, filter)
+                server[m]:contain_body("https:gist.github.com") *
+                server[m]:contain_to("bitbot@bil.omu.edu.tr")
     result = server[m]:fetch_message(filter)
     if result ~= nil then
-        --print (m)
         for j, s in pairs (result) do
-            -- okundu olarak isaretle kismi eklenecek !
-            --print (string.format("\t%s", s))
-            -- dosyaya yazdirmak mantikli degil ama baska yontemi bulmak
-            -- hizimi kesecek. TODO
             local file = io.open("content.txt", "w")
             file:write(s)
             file:close()
-            -- alt kisim generic olacak sekilde duzenlenecek.
             os.execute("ruby ~/github/ben/bitbot/bitbot.rb")
         end
+    filter:mark_seen()
     end
 end
 

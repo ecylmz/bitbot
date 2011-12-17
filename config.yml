@@ -1,10 +1,15 @@
+main:
+  email: from1@example.com
+  password: p4ssw0rd
+
 bil101:
-  hoca: Recai Oktaş
-  odev_adi: deneme
-  email: ecylmz@bil.omu.edu.tr
+  teacher: Recai Oktaş
+  hw_name: deneme
+  email: from2@example.com
   end_date: 2011-12-30
 
 bil202:
-  hoca: Onur Baran
-  odev_adi: deneme
-  bitiş: 2011-12-29
+  teacher: Onur Baran
+  hw_name: deneme
+  email: from3@example.com
+  end_date: 2011-12-29

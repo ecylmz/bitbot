@@ -32,11 +32,11 @@ def get_student_number(description)
 end
 
 # Genel mail gönderimi
-def send_email(who, body)
+def send_email(who, body, config)
   # bunlar config dosyasından alınmalı
-  from = "from@example.com"
+  from = config.transform['main']['email']
   to = "#{get_from_email get_content}"
-  p = "password"
+  p = config.transform['main']['password']
   content = <<EOF
 From: #{from}
 To: #{to}
@@ -54,10 +54,10 @@ end
 # hoca mı mail atmış, onun kontrolunde kullanılıyor
 # hoca mail adresini ve mevcut ödev adını dönüyor.
 def which_teacher(config, get_from_email)
-  # TODO break koy
+  result = nil
   config.transform.collect do |k, v|
     if get_from_email == v['email']
-      result = { :name => get_from_email, :hw => config.transform[k]['odev_adi']}
+      result = { :name => get_from_email, :hw => config.transform[k]['hw_name'], :lesson_code => k}
       break
     end
   end
@@ -70,14 +70,14 @@ def create_archive(hw_path)
 end
 
 # hocaya eki olan bi mail hazırlayalım.
-def send_email_teacher(teacher, file)
+def send_email_teacher(teacher, file, config)
   filecontent = File.read(file)
   encodedcontent = [filecontent].pack("m")
   marker = "AUNIQUEMARKER"
 
-  from = "from@example.com"
+  from = config.transform['main']['email']
   to = "#{teacher}"
-  p = "password"
+  p = config.transform['main']['password']
   content = <<EOF
 From: #{from}
 To: #{to}
@@ -86,16 +86,16 @@ Date: #{Time.now.rfc2822}
 MIME-Version: 1.0
 Content-Type: multipart/mixed; boundary=#{marker}
 --#{marker}
-
 Content-Type: text/plain
 Content-Transfer-Encoding:8bit
-#{body}
---#{marker}
 
+Ödevler ekteki dosyada.
+--#{marker}
 Content-Type: multipart/mixed; name=\"#{file}\"
 Content-Transfer-Encoding:base64
 Content-Disposition: attachment; filename="#{file}"
-#{encode_file}
+
+#{encodedcontent}
 #--#{marker}--
 EOF
 
@@ -122,44 +122,49 @@ def main
   end
   config = YAML::parse(File.open(CONFIG_FILE))
 
+  # mail atan hoca mı ?
+  if ! which_teacher(config, get_from_email(get_content)).nil?
+    info_teacher = which_teacher(config, get_from_email(get_content))
+    if info_teacher[:name]
+      create_archive(info_teacher[:lesson_code] + "/" + info_teacher[:hw])
+      send_email_teacher(info_teacher[:name], info_teacher[:hw]+".tar.gz", config)
+      exit(0)
+    end
+  end
+
   # gist dedigin private olmalı
   if gist.public?
-    send_email(who, "Geçersiz Gist.\nGist'iniz private olmalıdır.")
+    send_email(who, "Geçersiz Gist.\nGist'iniz private olmalıdır.", config)
     exit(1)
   end
 
   # forku varsa olmaz
   if gist.hasfork?
-    send_email(who, "Geçersiz Gist.\nGist'iniz forklara sahip olmamalıdır.")
+    send_email(who, "Geçersiz Gist.\nGist'iniz forklara sahip olmamalıdır.", config)
     exit(1)
   end
 
   # ders kodu var mı bakalım
   lesson = config.transform[get_lesson_code(gist.get_description)]
   if lesson.nil?
-    send_email(who, "Geçersiz Gist\nGist'in description kısmında [ders_kodu] yok veya hatalı ders kodu.")
+    send_email(who, "Geçersiz Gist\nGist'in description kısmında [ders_kodu] yok veya hatalı ders kodu.", config)
     exit(1)
   end
 
   # tarihi gecmis mi
   date_diff = lesson['end_date'] - Date.today
   if date_diff.zero?
-    send_email(who, "Geçersiz Gist.\nÖdev süresi doldu.")
+    send_email(who, "Geçersiz Gist.\nÖdev süresi doldu.", config)
     exit(1)
   end
 
-  # mail atan hoca mı ?
-  info_teacher = which_teacher(config, get_from_email)[:name]
-  if info_teacher[:name]
-    create_archive(get_lesson_code + "/" + info_teacher[:hw])
-    send_email_teacher(info_teacher[:name], info_teacher[:hw]+".tar.gz")
-    exit(0)
-  end
 
 
   # sorun yok
-  gist_clone(get_lesson_code(gist.get_description) + "/" + lesson['odev_adi'], get_gist_no(get_content), get_student_number(gist.get_description) + "_" + gist.get_username)
-  send_email(who, "Gistiniz kaydedildi.")
+  gist_clone(get_lesson_code(gist.get_description) + "/" + lesson['hw_name'], 
+             get_gist_no(get_content), 
+             get_student_number(gist.get_description) + "_" + gist.get_username)
+  send_email(who, "Gistiniz kaydedildi.", config)
 end
 
 main
